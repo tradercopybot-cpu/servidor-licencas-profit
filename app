@@ -2,10 +2,10 @@ from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime
 
-# O NOME TEM QUE SER "app" EXATAMENTE
+# NOME TEM QUE SER EXATAMENTE "app"
 app = Flask(__name__)
 
-# --- BANCO ---
+# BANCO
 def init_db():
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
@@ -26,7 +26,6 @@ def init_db():
 
 init_db()
 
-# --- ROTAS ---
 @app.route('/')
 def home():
     return "SERVIDOR DE LICENÇAS PROFIT ONLINE!"
@@ -38,55 +37,30 @@ def status():
     c.execute("SELECT nome, cpf, validade FROM licencas")
     rows = c.fetchall()
     conn.close()
-    
     hoje = datetime.now().strftime('%Y-%m-%d')
-    licencas = []
-    for nome, cpf, validade in rows:
-        status = "Ativo" if validade >= hoje else "Expirada"
-        licencas.append({"nome": nome, "cpf": cpf, "validade": validade, "status": status})
-    
-    return jsonify({
-        "servidor": "Online",
-        "total": len(licencas),
-        "licencas": licencas
-    })
+    licencas = [{"nome": n, "cpf": c, "validade": v, "status": "Ativo" if v >= hoje else "Expirada"} for n, c, v in rows]
+    return jsonify({"servidor": "Online", "total": len(licencas), "licencas": licencas})
 
 @app.route('/validar', methods=['POST'])
 def validar():
     data = request.get_json()
-    cpf = data.get('cpf')
-    hwid = data.get('hwid')
-    
+    cpf, hwid = data.get('cpf'), data.get('hwid')
     if not cpf or not hwid:
         return jsonify({"status": "negado", "motivo": "Dados faltando"}), 400
-    
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
     c.execute("SELECT nome, validade, hwid FROM licencas WHERE cpf = ?", (cpf,))
     row = c.fetchone()
     conn.close()
-    
     if not row:
         return jsonify({"status": "negado", "motivo": "CPF não encontrado"}), 403
-    
     nome, validade, hwid_db = row
     hoje = datetime.now().strftime('%Y-%m-%d')
-    
     if validade < hoje:
         return jsonify({"status": "negado", "motivo": "Licença expirada"}), 403
-    
     if hwid != hwid_db:
         return jsonify({"status": "negado", "motivo": "HWID não autorizado"}), 403
-    
     return jsonify({"status": "ativo", "nome": nome})
 
-@app.route('/executar', methods=['POST'])
-def executar():
-    data = request.get_json()
-    comando = data.get('comando', '')
-    print(f"[SINAL] {comando}")
-    return jsonify({"status": "ok"})
-
-# RODAR LOCAL (IGNORADO NO RENDER)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
