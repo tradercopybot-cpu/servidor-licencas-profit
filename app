@@ -2,9 +2,10 @@ from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime
 
-app = Flask(__name__)  # <- ESTA LINHA É ESSENCIAL — GUNICORN PROCURA ISSO
+# O NOME TEM QUE SER "app" EXATAMENTE
+app = Flask(__name__)
 
-# --- BANCO DE DADOS ---
+# --- BANCO ---
 def init_db():
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
@@ -16,7 +17,6 @@ def init_db():
             hwid TEXT
         )
     ''')
-    # Adiciona exemplo se vazio
     c.execute("SELECT COUNT(*) FROM licencas")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO licencas VALUES ('12345678900', 'João Silva', '2026-12-31', 'a1b2c3d4e5f6g7h8')")
@@ -87,5 +87,6 @@ def executar():
     print(f"[SINAL] {comando}")
     return jsonify({"status": "ok"})
 
+# RODAR LOCAL (IGNORADO NO RENDER)
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=8080)
