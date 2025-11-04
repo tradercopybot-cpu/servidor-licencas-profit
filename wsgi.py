@@ -2,10 +2,10 @@ from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime
 
-# NOME TEM QUE SER EXATAMENTE "app"
+# NOME DA VARIÁVEL: app
 app = Flask(__name__)
 
-# BANCO
+# --- BANCO ---
 def init_db():
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
@@ -26,6 +26,7 @@ def init_db():
 
 init_db()
 
+# --- ROTAS ---
 @app.route('/')
 def home():
     return "SERVIDOR DE LICENÇAS PROFIT ONLINE!"
@@ -38,13 +39,17 @@ def status():
     rows = c.fetchall()
     conn.close()
     hoje = datetime.now().strftime('%Y-%m-%d')
-    licencas = [{"nome": n, "cpf": c, "validade": v, "status": "Ativo" if v >= hoje else "Expirada"} for n, c, v in rows]
+    licencas = []
+    for nome, cpf, validade in rows:
+        status = "Ativo" if validade >= hoje else "Expirado"
+        licencas.append({"nome": nome, "cpf": cpf, "validade": validade, "status": status})
     return jsonify({"servidor": "Online", "total": len(licencas), "licencas": licencas})
 
 @app.route('/validar', methods=['POST'])
 def validar():
     data = request.get_json()
-    cpf, hwid = data.get('cpf'), data.get('hwid')
+    cpf = data.get('cpf')
+    hwid = data.get('hwid')
     if not cpf or not hwid:
         return jsonify({"status": "negado", "motivo": "Dados faltando"}), 400
     conn = sqlite3.connect('licencas.db')
