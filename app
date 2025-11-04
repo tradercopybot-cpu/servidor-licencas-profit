@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime
 
-app = Flask(__name__)
+app = Flask(__name__)  # <- ESTA LINHA É ESSENCIAL — GUNICORN PROCURA ISSO
 
 # --- BANCO DE DADOS ---
 def init_db():
@@ -16,7 +16,7 @@ def init_db():
             hwid TEXT
         )
     ''')
-    # Adiciona exemplos se vazio
+    # Adiciona exemplo se vazio
     c.execute("SELECT COUNT(*) FROM licencas")
     if c.fetchone()[0] == 0:
         c.execute("INSERT INTO licencas VALUES ('12345678900', 'João Silva', '2026-12-31', 'a1b2c3d4e5f6g7h8')")
