@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import sqlite3
 from datetime import datetime
 import os
+import re
 
 app = Flask(__name__)
 
@@ -81,14 +82,18 @@ def status():
     })
 
 # --- ROTA 1: VALIDAÇÃO DO RECEPTOR (CLIENTE) ---
-@app.route('/validar', methods=['POST'])
-def validar():
+@app.route('/validar_receptor', methods=['POST']) # ROTA CORRIGIDA
+def validar_receptor():
     data = request.get_json()
     cpf = data.get('cpf')
     hwid = data.get('hwid')
 
+    # Validação de dados de entrada
     if not cpf or not hwid:
-        return jsonify({"valido": False, "motivo": "Dados faltando"}), 400
+        return jsonify({"status": "erro", "motivo": "Dados de autenticação faltando (CPF/HWID)."}), 400
+
+    # Normaliza o CPF (remove pontuação, apenas números)
+    cpf = re.sub(r'[^0-9]', '', cpf)
 
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
@@ -97,18 +102,31 @@ def validar():
     conn.close()
 
     if not row:
-        return jsonify({"valido": False, "motivo": "CPF não encontrado"}), 403
+        return jsonify({"status": "erro", "motivo": "CPF não encontrado ou não cadastrado."}), 403
 
     nome, validade, hwid_db = row
     hoje = datetime.now().strftime('%Y-%m-%d')
 
+    # Validação de Validade
     if validade < hoje:
-        return jsonify({"valido": False, "motivo": "Licença expirada"}), 403
+        return jsonify({"status": "erro", "motivo": "Licença expirada. Contate o suporte."}), 403
 
+    # Validação de HWID (Se for 'qualquer', aceita. Senão, deve bater.)
     if hwid_db != 'qualquer' and hwid != hwid_db:
-        return jsonify({"valido": False, "motivo": "HWID não autorizado"}), 403
+        return jsonify({"status": "erro", "motivo": "HWID não autorizado. Licença vinculada a outra máquina."}), 403
+    
+    # Se o HWID no banco for 'qualquer', o Receptor está tentando o primeiro acesso.
+    # Neste ponto, você pode salvar o HWID enviado na primeira vez que o cliente se conecta.
+    # Exemplo de lógica para salvar o HWID:
+    if hwid_db == 'qualquer':
+        conn = sqlite3.connect('licencas.db')
+        c = conn.cursor()
+        c.execute("UPDATE licencas SET hwid = ? WHERE cpf = ?", (hwid, cpf))
+        conn.commit()
+        conn.close()
 
-    return jsonify({"valido": True, "nome": nome})
+    # Retorno de SUCESSO (Status OK)
+    return jsonify({"status": "ok", "nome": nome}), 200
 
 # --- ROTA 2: VALIDAÇÃO DO EMISSOR (ADMINISTRADOR) ---
 @app.route('/validar_emissor', methods=['POST'])
@@ -121,7 +139,6 @@ def validar_emissor():
 
     conn = sqlite3.connect('licencas.db')
     c = conn.cursor()
-    # Busca a chave na nova tabela 'emissores'
     c.execute("SELECT nome, validade FROM emissores WHERE chave_mestra = ?", (chave_mestra,))
     row = c.fetchone()
     conn.close()
